@@ -1,313 +1,272 @@
-<p align="center">
-    <br>
-    <img src="github_images/TEDD1104.svg" width="900"/>
-    <br>
-    <a href="https://twitter.com/intent/tweet?text=Wow:&url=https%3A%2F%2Fgithub.com%2Fikergarcia1996%2FSelf-Driving-Car-in-Video-Games"><img alt="Twitter" src="https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Fikergarcia1996%2FSelf-Driving-Car-in-Video-Games"></a>
-    <a href="https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/blob/master/LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/ikergarcia1996/Self-Driving-Car-in-Video-Games"></a>
-    <a href="https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/ikergarcia1996/Self-Driving-Car-in-Video-Games?color=yellow"></a>
-    <a href="https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/network"><img alt="GitHub forks" src="https://img.shields.io/github/forks/ikergarcia1996/Self-Driving-Car-in-Video-Games"></a>
-    <a href="https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/releases"><img alt="GitHub release" src="https://img.shields.io/badge/Release-5.1.0-green"></a>
-    <a href="https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/releases"><img alt="Pretrained Models" src="https://img.shields.io/badge/Pretrained Models-Available-green"></a>
-    <a href="https://ikergarcia1996.github.io/Iker-Garcia-Ferrero/"><img alt="Author" src="https://img.shields.io/badge/Author-Iker García Ferrero-ff69b4"></a>
-    <br>
-    <br>
-</p>
+# Diffusion Policy — 精读笔记与本地复现
 
-A supervised deep neural network that learns how to drive in video games. The main objective of this project is to 
-achieve a model that can drive in Grand Theft Auto V. Given a waypoint, the model is expected to reach the destination as
-fast as possible avoiding other cars, humans and obstacles. 
+> 对 Chi et al., *Diffusion Policy: Visuomotor Policy Learning via Action Diffusion* (RSS 2023 / IJRR 2024) 的精读笔记、数学推导与 PushT-lowdim 任务在 **RTX 5060 Laptop (Blackwell sm_120)** 上的本地复现记录。
+>
+> 原论文: [arXiv:2303.04137](https://arxiv.org/abs/2303.04137) · 原作者 repo: [real-stanford/diffusion_policy](https://github.com/real-stanford/diffusion_policy)
+>
+> **本仓库不包含原论文代码**——所有原作者工作归原作者所有。本仓库只包含我在学习过程中产出的笔记、推导、架构图与复现结果。
 
-The model is trained using human labelled data. We record the game and key inputs of humans while they play the game, this data
-is used to train the model. 
+---
 
-While we focus on self-driving cars and the video game Grand Theft Auto V this model can be adapted to play any existing
-video game. 
+## 差异化价值
 
-<table>
-<tr>
-<td> <img src="github_images/demo.gif" alt="gotta go fast!"/> </td>
-<td> <img src="github_images/demo2.gif" alt="gotta go fast2!"/> </td>
-</tr>
-</table>
+这不是一次"调用 API 跑跑 demo"的复现。2023 年发布的代码要在 **2026 年的 Blackwell 架构**（RTX 50 系列）上跑起来，涉及：
 
-# Pretrained T.E.D.D. 1104 models
-We provide pretrained T.E.D.D. 1104 models that you can use for real-time inference :)  
-The models are trained using 130 GB of human labelled data.  
-The model has been trained in first-person-view with a route to follow in the minimap.  
-The model has learned to drive a large variety of vehicles in different weather conditions (Sun, night, sunny, rain...).  
-For each model we provide the best and the last epoch.  
-See [Software and HOW-TO Section](https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games#software-and-how-to) for instructions on how run the models.
+- **GPU 架构 gap**: 原作者用 sm_86/sm_90，Blackwell 是 sm_120，原 PyTorch 1.12 + CUDA 11.6 完全不兼容
+- **依赖生态漂移**: 三年间 conda / pip / numpy / huggingface-hub 都经历了破坏性变更
+- **端到端验证**: matmul 测试通过 ≠ 训练能跑，必须做完整冒烟测试才能确认兼容性
 
-### T.E.D.D. 1104 XXL: 138M Parameters. 
-Download link: [See the Releases Tab](https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/releases)  
-Accuracy in the test datasets:
+把这些 gap 系统性解决并**真的跑出对标论文的成绩**，是比"运行官方训练脚本"更稀缺的工程能力。
 
-|         |              Time              |   Weather  | Micro-Acc K@1 | Micro-Acc k@3 | Macro-Acc K@1 |
-|---------|:------------------------------:|:----------:|:-------------:|:-------------:|:-------------:|
-| City    |         :sun_with_face:        |   :sunny:  |     53.2      |     84.4      |     46.2      |
-| City    |         :sun_with_face:        | :umbrella: |     51.4      |     83.4      |     46.3      |
-| City    | :first_quarter_moon_with_face: |   :sunny:  |     54.3      |     85.6      |     46.3      |
-| City    | :first_quarter_moon_with_face: | :umbrella: |     47.3      |     82.3      |     49.9      |
-| Highway |         :sun_with_face:        |   :sunny:  |     72.7      |     97.7      |     40.6      |
-| Highway |         :sun_with_face:        | :umbrella: |     70.6      |     99.3      |     39.6      |
-| Highway | :first_quarter_moon_with_face: |   :sunny:  |     77.9      |     99.3      |     45.7      |
-| Highway | :first_quarter_moon_with_face: | :umbrella: |     70.9      |     97.6      |     30.8      |
+---
 
-### T.E.D.D. 1104 M: 68M Parameters.
-Download link: [See the Releases Tab](https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/releases)  
-Accuracy in the test datasets:
+## 复现结果摘要
 
-|         |              Time              |   Weather  | Micro-Acc K@1 | Micro-Acc k@3 | Macro-Acc K@1 |
-|---------|:------------------------------:|:----------:|:-------------:|:-------------:|:-------------:|
-| City    |         :sun_with_face:        |   :sunny:  |     52.9      |     84.1      |     43.1      |
-| City    |         :sun_with_face:        | :umbrella: |     49.9      |     81.3      |     42.2      |
-| City    | :first_quarter_moon_with_face: |   :sunny:  |     54.7      |     85.1      |     48.4      |
-| City    | :first_quarter_moon_with_face: | :umbrella: |     49.5      |     81.1      |     41.1      |
-| Highway |         :sun_with_face:        |   :sunny:  |     62.5      |     99.2      |     43.1      |
-| Highway |         :sun_with_face:        | :umbrella: |     71.9      |     99.3      |     39.2      |
-| Highway | :first_quarter_moon_with_face: |   :sunny:  |     79.4      |     99.3      |     45.3      |
-| Highway | :first_quarter_moon_with_face: | :umbrella: |     63.0      |     97.2      |     47.2      |
-###  T.E.D.D. 1104 S: 26M Parameters.
-Download link: [See the Releases Tab](https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games/releases)  
-Accuracy in the test datasets:
+- **任务**: PushT-lowdim (Push-T block, low-dim state observation)
+- **架构**: CNN-based Diffusion Policy (1D temporal U-Net + FiLM)
+- **训练时长**: 5000 epochs, ~24 小时
+- **最佳成绩**: **test mean score 0.959 @ epoch 2250**
 
-|         |              Time              |   Weather  | Micro-Acc K@1 | Micro-Acc k@3 | Macro-Acc K@1 |
-|---------|:------------------------------:|:----------:|:-------------:|:-------------:|:-------------:|
-| City    |         :sun_with_face:        |   :sunny:  |     51.0      |     83.0      |     46.3      |
-| City    |         :sun_with_face:        | :umbrella: |     49.0      |     82.5      |     45.2      |
-| City    | :first_quarter_moon_with_face: |   :sunny:  |     56.3      |     86.6      |     49.0      |
-| City    | :first_quarter_moon_with_face: | :umbrella: |     49.4      |     81.4      |     42.5      |
-| Highway |         :sun_with_face:        |   :sunny:  |     70.3      |      100      |     68.5      |
-| Highway |         :sun_with_face:        | :umbrella: |     71.2      |      100      |     37.6      |
-| Highway | :first_quarter_moon_with_face: |   :sunny:  |     80.9      |      100      |     49.1      |
-| Highway | :first_quarter_moon_with_face: | :umbrella: |     69.3      |      100      |     61.1      |
+### 对标论文 Table 1 (PushT-ph)
 
-# Datasets
-We provide train/dev/test datasets for training and evaluating T.E.D.D 1107 models:
-- Train Dataset (~130Gb): Coming soon... 
-- Dev Dataset (~495Mb): [Download Dev+Test datasets](https://drive.google.com/file/d/1SutVGsQKg0mDUkfGML1nBboLWi5e5_4E/view?usp=sharing).
-- Test Dataset (~539Mb): [Download Dev+Test datasets](https://drive.google.com/file/d/1SutVGsQKg0mDUkfGML1nBboLWi5e5_4E/view?usp=sharing).
+| 指标 | 本次复现 | 论文报告 (DiffusionPolicy-C) |
+|---|---|---|
+| max score | **0.959** | 0.95 |
+| score 稳定区间 (epoch 1050–2550) | 0.947 – 0.959 | — |
+| 训练速度 | ~10.8 it/s | — |
 
+### 训练曲线
 
-##  Architecture
+![Training Loss Curve](results/train_loss_curve.png)
 
-T.E.D.D. 1104 is an End-To-End model. We approach the task as a classification task. 
-The input of the model is a sequence of 5 images, each image has been recorded with a 0.1s interval. 
-The outputs are the correct keys on the keyboard to press. Alternatively T.E.D.D. 1104 can also be trained with a regression objective using Xbox controller inputs. 
+Train loss 从 0.91 降到 9.7e-5（最后 10 epoch 平均），跨度接近 4 个数量级，无明显过拟合。最佳 checkpoint 出现在 epoch 2250 之后性能进入平台期，继续训练只降低 train loss 但不提高 rollout 成功率——与论文 Sec 5.2 "checkpoint selection" 观察一致。
 
-<p align="center">
-  <img src="github_images/network_architecture.png" alt="The brain!"/>
-</p>
+---
 
-The model consists of three modules:
-First, a **Convolutional Neural Network** that encodes each input image in a feature 
-vector. We use EfficientNetV2 [arXiv:2104.00298](https://arxiv.org/abs/2104.00298).
-We use a **transformer encoder** (https://arxiv.org/abs/1706.03762) to generate bidirectional joint distributions over the feature vector
-sequence. Finally, we use the [CLS] token to predict the key combination. 
+## 硬件与环境
 
-The model has been implemented using Pytorch: https://pytorch.org/ and PyTorch Lightning: https://www.pytorchlightning.ai/
+### 硬件
 
-# Software and HOW-TO
-This repository contains all the files need for generating the training data, training the model and using the model to 
-drive in the video game (Real-Time Inference). The software has been written in Python 3. You can train a model in any OS. 
-Data generation and inference only work in Windows 10/11 which are the only OS supported by most video games. 
+| 组件 | 规格 |
+|---|---|
+| GPU | NVIDIA GeForce RTX 5060 Laptop GPU (**Blackwell, sm_120**, 8GB) |
+| CPU | Intel Core Ultra 9 275HX |
+| RAM | 64 GB |
+| OS | Windows 11 + WSL2 Ubuntu 22.04 |
+| NVIDIA Driver | 592.01 (CUDA 13.1) |
 
-## Requirements
-You can train and evaluate models on any Operating System (We use Linux for training).  
-Running real time inference (Let TEDD1104 drive in GTAV) requires Windows 10/11.
-```
-Python 3.7 or newer (3.9.7 tested)
-Pytorch (1.12.0 or newer)
-Torchvision (>=0.13.0 and < 0.15.0. Compatibility with torchvision >=0.15.0 will be added in a future release)
-PyTorch Lightning (1.6.0 or newer)
-torchmetrics
-scikit-image
-numpy
-PIL/Pillow
-cv2 (opencv-python)
-tkinter
-tabulate
-fairseq (If you want to train a model using AdaFactor)
-wandb or tensorboard for training (Set "--report_to" accordingly)
-win32api (PythonWin) - Only required for running real time inference (Let TEDD play the game)
-                       Should be installed by default in newest Python versions for Windows. 
+**为什么用 WSL2 而不是 Windows 原生**: 原 `conda_environment.yaml` 依赖 `mujoco-py`, `pygame`, `pyvirtualdisplay` 等 Linux-only 预编译 wheel，Windows 原生 conda 会在多处编译失败。WSL2 + Linux Miniconda 是唯一符合作者原始环境的选择。
 
+### 版本锁（可复现）
 
-pygame - Only required if you wish to generate data using a Xbox Controller
-PYXInput - Only required if you wish to use a Vitual Xbox Controller as game controller instead of the keyboard. 
-           See controller\README.md for installation instructions. 
+```yaml
+# System
+OS:              WSL2 Ubuntu 22.04
+Python:          3.9.25
+CUDA (runtime):  12.8
+
+# Core ML — 必须原生支持 sm_120，PyTorch 1.x / 2.5 均不兼容
+torch:           2.7.x+cu128
+numpy:           1.23.5    # numba 0.56 的硬上限
+numba:           0.56.4
+
+# Diffusion Policy 关键锁定
+diffusers:       0.11.1
+huggingface-hub: 0.11.1    # 必须与 diffusers 0.11.1 配对，否则 HfFolder ImportError
+hydra-core:      1.2.0
+gym:             0.21.0
+
+# 构建工具（为兼容老 gym 而降级）
+setuptools:      65.5.0    # 66+ 不接受 gym 0.21 的旧 setup.py 语法
+wheel:           0.38.4
+pip:             <24.1     # 24.1+ metadata 严格检查会拒绝 gym 的非 PEP440 版本号
+
+# 其他依赖
+zarr:            2.12.0
+numcodecs:       0.10.2
+einops:          0.4.1
+pymunk:          6.2.1
+shapely:         1.8.4
+accelerate:      0.13.2
+wandb:           0.13.3
+pandas:          1.5.3     # 官方 yaml 遗漏，需补装
 ```
 
-## Run Inference 
-How to use a pretrained T.E.E.D. 1104 model to drive in GTAV
+### 关键兼容性结论
 
-### Configure the game
-You can run the game in "windowed mode" or "full screen" mode. 
-If you want to run the game in "windowed mode":
-- Run GTAV and set your game to windowed mode.
-- Set the desired game resolution (i.e 1600x900 resolution).
-- Move the game window to the top left corner.
-- Run the script with the "--width 1600" and "--height 900" parameters.
+| Gap | 解决方向 |
+|---|---|
+| PyTorch 1.12 + CUDA 11.6 → Blackwell sm_120 不兼容 | 必须升级到 PyTorch ≥2.7 + CUDA 12.8（原生预编译 sm_120 的版本） |
+| PyTorch 2.5.1 matmul 测试假阳性 | 部分 kernel 走 sm_90 PTX JIT 能通过，但 `x * scale + offset` 等操作无 PTX 兜底，训练启动后立即报 `no kernel image is available` |
+| Conda 2024+ ToS 强制 | `conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main` |
+| NumPy 2.x 与老代码冲突 | `pip install numpy==1.23.5 --force-reinstall --no-deps` |
+| gym 0.21 安装失败 | 必须 **同时** 降级 setuptools (<66)、wheel、pip (<24.1) 三者 |
+| `HfFolder` ImportError | huggingface-hub 升到 1.x 后删除了该 API，锁回 0.11.1 |
 
-<p align="center">
-  <img src="github_images/example_config.png" alt="Setup Example"/>
-</p>
-  
+---
 
-If you want to run the game in "full screen" mode:
-- Run GTAV **in your main screen** (The one labelled as screen nº1) and set your game to full-screen mode.
-- Configure the game resolution with the resolution of your screen (i.e 2560x1440 resolution).
-- Run the script with the "--width 2560", "--height 1440" and "--full_screen" parameters.
-
-<p align="center">
-  <img src="github_images/example_config_full_screen.png" alt="Setup Example Full Screen"/>
-</p>
-
-In addition, if you want to run the pretrained models that we provide you must:
-- Set the Settings>Camera>First person Vehicle Hood to "On"
-- Change the camera to first-person-view (Push "V")
-- Set a waypoint in the minimap
-
-<p align="center">
-  <img src="github_images/additional_config.jpg" alt="Setup Example"/>
-</p>
-
-
-### Run a Model
-
-Use the *run_TEDD1104.py* script to run a model for real-time inference. See "run_TEDD1104.py -h" to get a description of all the available parameters. 
+## 仓库结构
 
 ```
-python run_TEDD1104.py \
---checkpoint_path "models\TEDD1107_model.ckpt" \
---width 1920 \
---height 1080 \
---num_parallel_sequences 5 \
---control_mode keyboard
-```
-num_parallel_sequences: number of parallel sequences to record, if the number is higher the model will do more 
-iterations per second (will push keys more often) provided your GPU is fast enough. This improves the performance of the 
-model but increases the CPU and RAM usage. 
-
-control_mode: Choose between keyboard and controller (Xbox Controller). It doesn't matter how the model has been trained, 
-the output of the model will be converted to the desired control_mode. 
-
-If the model does not perform as expected (It doesn't seem to do anything or always chooses the same action) you can 
-push "L" while the script is running to verify the input images. 
-
-## Train your own model
-### Self Driving Model
-
-Use the *train.py* script to train a new model from scratch or continue training a model. 
-See "train.py -h" to get a description of all the available parameters. 
-See the [training_scripts](/training_scripts) folder to see the training commands that we used
-to train the released models. 
-
-
-Example command:
-```sh
-python3 train.py --train_new \
-  --train_dir dataset/train \
-  --val_dir  dataset/dev \
-  --output_dir runs/TEDD1104-base \
-  --encoder_type transformer \
-  --batch_size 16 \
-  --accumulation_steps 4 \
-  --max_epochs 12 \
-  --cnn_model_name efficientnet_b4 \
-  --num_layers_encoder 4 \
-  --mask_prob 0.2 \
-  --dropout_cnn_out 0.3 \
-  --dropout_encoder 0.1 \
-  --dropout_encoder_features 0.3 \
-  --control_mode keyboard \
-  --dataloader_num_workers 32 \
-  --val_check_interval 0.5 
+diffusion-policy-study-notes/
+├── README.md                               ← 本文件
+├── notes/
+│   ├── 01_ddpm_math_derivation.md          ← DDPM 数学推导（前向闭式解、L_simple、反向均值）
+│   ├── 02_architecture_breakdown.md        ← 五组件架构与训练/推理数据流
+│   ├── 03_code_location_map.md             ← 论文概念到代码位置的映射
+│   └── 04_critique_and_open_questions.md   ← 批判性分析与待解问题
+└── results/
+    └── train_loss_curve.png                ← 5000 epoch 训练曲线
 ```
 
-You can continue training a model using the "--continue_training" flag 
-```sh
-python3 train.py --continue_training \
-  --checkpoint_path runs/TEDD1104-base/model.ckpt \
-  --train_dir dataset/train \
-  --val_dir  dataset/dev \
-  --output_dir runs/TEDD1104-base \
-  --batch_size 16 \
-  --accumulation_steps 4 \
-  --max_epochs 24 \
-  --cnn_model_name efficientnet_b4 \
-  --dataloader_num_workers 32 \
-  --val_check_interval 0.5 
+---
+
+## 训练命令
+
+```bash
+# 下载官方实验 config（不要用命令行组合 config，会不一致）
+wget -O lowdim_pusht_diffusion_policy_cnn.yaml \
+  https://diffusion-policy.cs.columbia.edu/data/experiments/low_dim/pusht/diffusion_policy_cnn/config.yaml
+
+# 后台启动训练
+nohup python train.py \
+    --config-dir=. \
+    --config-name=lowdim_pusht_diffusion_policy_cnn.yaml \
+    logging.mode=disabled \
+    hydra.run.dir="data/outputs/pusht_lowdim_$(date +%Y%m%d_%H%M%S)" \
+    > train.log 2>&1 &
+
+tail -f train.log
 ```
 
-#### Evaluate model:
-Use the eval.py script to evaluate a model in the test dataset.
-```sh
-python3 eval.py \
-  --checkpoint_path models/tedd_1104_S/epoch=4-step=198544.ckpt \
-  --batch_size 32 \
-  --test_dirs \
-   /data/gtaai_datasets/dev \
-   /data/gtaai_datasets/test/car_city_day_clear \
-   /data/gtaai_datasets/test/car_city_day_rain \
-   /data/gtaai_datasets/test/car_city_night_clear \
-   /data/gtaai_datasets/test/car_city_night_rain \
-   /data/gtaai_datasets/test/car_highway_day_clear \
-   /data/gtaai_datasets/test/car_highway_day_rain \
-   /data/gtaai_datasets/test/car_highway_night_clear \
-   /data/gtaai_datasets/test/car_highway_night_rain \
-  --output_path results/tedd_1104_S.tsv
+Hydra 每 50 epoch 自动跑一次环境 rollout eval，把 top-k checkpoint 的 score 直接写进文件名，无需额外调用 `eval.py`。
+
+---
+
+## 我从这篇论文学到的东西
+
+### 1. 论文核心定位
+
+Diffusion Policy 把视觉运动策略建模为**以观测为条件、对动作序列去噪的扩散过程**。它解决了模仿学习中的三类困难：
+- 动作分布的多模态性（同一观测下多种合理动作）
+- 时序相关性（连续动作需要一致性）
+- 高精度要求（接触丰富的操作任务）
+
+扩散范式本身带来三个"红利"：可表达任意可归一化分布、支持高维输出、训练稳定（不需要估计 IBC 那种 intractable 的配分函数 Z）。这两组（任务固有困难 vs 方法红利）不应混淆，在写 related work 时需要分开陈述。
+
+DP 自己的原创贡献是三个工程设计：**receding horizon control**、**visual conditioning**（区别于 Diffuser 的联合建模）、**time-series diffusion transformer**。
+
+### 2. DDPM 数学推导
+
+我推导并理解的核心公式：
+
+```
+前向单步:      x_t = √α_t · x_{t-1} + √(1-α_t) · ε_t
+前向闭式解:    x_t = √ᾱ_t · x_0 + √(1-ᾱ_t) · ε,   ᾱ_t = Π α_s
+训练 loss:     L_simple = ||ε - ε_θ(x_t, t)||²
+反向均值:      μ_θ = (1/√α_t)(x_t - (1-α_t)/√(1-ᾱ_t) · ε_θ)
 ```
 
-### Image Reordering Model
-An experimental unsupervised pretraining objective. We shuffle the order of the input sequence and the model must 
-predict the correct order of the input images. See "train_reorder.py -h" to get a description of all the available parameters.
-This script is almost identical to the self-driving script, except it only supports transformer encoder models and doesn't
-have a 'control_mode' parameter. Refer to the [previous section](#self-driving-model) for training/eval details. 
-After training with the image reordering objective you can finetune the model in the Self-Driving objective. 
+**设计逻辑链**（为什么 DDPM 长这样）：
+1. 推理时没有 x_0，只能走 x_t → x_{t-1} 的反向链
+2. 训练 loss 必须匹配 q(x_{t-1} | x_t, x_0) 这个反向条件分布
+3. 贝叶斯反推：用已知的前向推出未知的反向，结果是高斯
+4. 两个同方差高斯的 KL 等于均值的 MSE，所以只需匹配均值
+5. 用 ε 重参数化均值最自然（尺度一致，对网络 friendly）
+6. 丢掉 t 相关权重得到 L_simple（经验上更好）
 
-```sh
-python3 train.py \
---new_model \
---checkpoint_path models/image_reordering.ckpt \
-...
+详见 [notes/01_ddpm_math_derivation.md](notes/01_ddpm_math_derivation.md)。
+
+### 3. 架构理解
+
+**五个组件**: 观测编码器 → 时间步 embedding → 动作序列 → 噪声预测网络 ε_θ → Receding Horizon Controller
+
+**关键接口**（CNN 和 Transformer 变体共享）:
+```
+ε_θ(A_t^k, O_t, k) → ε̂
+输入: (带噪动作, 观测, 时间步)
+输出: 同形状的预测噪声
 ```
 
-Use the eval_reorder.py script to evaluate an image reordering model in the test dataset.
+**三个 horizon** 参数（PushT 默认）:
+- `T_o = 2`（观测历史）
+- `T_p = 16`（预测长度，保证时序一致性）
+- `T_a = 8`（执行长度，保证响应性）
 
+CNN 变体用 FiLM 做条件注入，Transformer 变体用 cross-attention——**功能同构，机制不同**。详见 [notes/02_architecture_breakdown.md](notes/02_architecture_breakdown.md)。
 
-## Generate Data
+### 4. 代码结构
 
-Use the *generate_data.py* script to generate new data for training or evaluation. See Use "run_TEDD1104.py -h" to get a description of all the available parameters.
-Configure the game following [The Configure the game section](#configure-the-game). 
-```
-python generate_data.py \
---save_dir "dataset/train" \
---width 1920 \
---height 1080 \
---control_mode keyboard
-```
+| 论文概念 | 代码位置 |
+|---|---|
+| 训练 loss (L_simple) | `diffusion_policy/policy/diffusion_unet_lowdim_policy.py::compute_loss` |
+| 闭式解加噪 | `noise_scheduler.add_noise()` (HuggingFace diffusers) |
+| U-Net 架构 | `diffusion_policy/model/diffusion/conditional_unet1d.py::ConditionalUnet1D` |
+| FiLM 调制 | `ConditionalResidualBlock1D` 内 `scale * x + bias` |
+| 推理循环 | `diffusion_unet_lowdim_policy.py::conditional_sample` |
+| 反向均值公式 | `scheduler.step()` (DDPMScheduler / DDIMScheduler) |
+| Receding horizon | `predict_action` 外层（`n_action_steps` 配置） |
 
-If control_mode is set to "keyboard" we will record the state of the "WASD" keys. If control_mode is set to "controller"
-we will record the state of the first Xbox Controller that Pygame can detect. 
-To avoid generating a huge unbalanced dataset the script will try to balance the data while recording. The more examples
-of a given class recorded the lower the probability of recording a new example of that class. If you want 
-to disable this behaviour use the "--save_everything" flag. 
+详见 [notes/03_code_location_map.md](notes/03_code_location_map.md)。
 
+### 5. 跨学科连接
 
-## Citation:
-```
-@misc{TEDD1104,
-  author = {"Garc{\'\i}a-Ferrero, Iker},
-  title = {TEDD1104: Self Driving Car in Video Games},
-  year = {2022},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/ikergarcia1996/Self-Driving-Car-in-Video-Games}},
-}
-```
+- **玻尔兹曼分布 ↔ EBM**: `p = e^(-E)/Z` 直接来自统计物理，"配分函数" Z 的术语原封不动
+- **Langevin 动力学 ↔ 扩散采样**: 随机分子动力学是扩散模型采样的数学前身
+- **IBC 的 Z(o) 困境 ↔ DP 用梯度场绕过**: 取 log 对 a 求导，Z(o) 因不依赖 a 直接消为零，这是整个 score-based 方法的起点
+- **经典 MPC ↔ Receding Horizon**: 论文 Sec 4.5 明确了与线性控制论的联系
 
-Author: **Iker García-Ferrero**:  
-- [My Webpage](https://ikergarcia1996.github.io/Iker-Garcia-Ferrero/)  
-- [Twitter](https://twitter.com/iker_garciaf)
+---
 
+## 我对这篇论文的批判性思考
+
+精读的一个检验标准是能否指出论文的 limitation。以下是我能独立提出的几点：
+
+1. **推理延迟**: T_p = 16、K = 100 次去噪，即使 DDIM 加速到 10 次，在高频控制场景（>100Hz）仍然受限。Sec 9 作者自己承认。
+2. **行为克隆的本质缺陷**: DP 继承了 BC 的所有问题——次优示教数据导致次优策略、无自主探索、OOD 场景无能。不是 DP 独有，但仍是真实限制。
+3. **视觉编码器选择缺乏解释**: Sec 5.4 的 ablation 显示"冻结 CLIP 不如从头训"，作者仅猜测"DP 偏好不同的视觉表示"。这是未解之谜，也是一个研究机会。
+4. **条件注入方式仍是 heuristic**: FiLM 还是 cross-attention、注入哪几层、条件压缩程度——都没有理论指导，全靠调参。
+5. **未显式建模动作轨迹的时序先验**: DP 的 1D CNN 是通用时序模型，没有利用"动作应该光滑连续"这种强先验。一个用 ODE/SDE 参数化的扩散模型可能更高效。
+
+详见 [notes/04_critique_and_open_questions.md](notes/04_critique_and_open_questions.md)。
+
+---
+
+## 学习路径（给未来读者的建议）
+
+如果你像我一样是没有 ML 背景的本科生，我的建议路径：
+
+1. **第一天**: 精读 Abstract + Intro + Sec 2.1–2.3 + Sec 3.1 + Fig 1–2，建立宏观理解
+2. **数学打通**: 推导 DDPM 的前向闭式解（用高斯叠加 + 归纳法）和 L_simple 的设计逻辑链
+3. **架构理解**: 画出五组件数据流（训练 vs 推理两条），理解 FiLM 和 U-Net 的分工
+4. **代码定位**: 找到 `compute_loss` / `ConditionalUnet1D` / `conditional_sample` 三个位置，不用读懂每行
+5. **复现跑通**: 用原 repo 训练一个 lowdim 任务，对标论文 table
+
+**不需要前置知识**（可以边学边补）:
+- KL 散度（记住同方差高斯 KL = 均值 MSE / 2σ²）
+- 贝叶斯公式（知道它能把反向条件分布用前向表达即可）
+- VAE / ELBO（知道"最大化下界 = 间接最大化似然"）
+
+**需要前置知识**:
+- 数学分析（高斯分布的线性性质、方差计算）
+- 线性代数（向量、矩阵基本运算）
+- 深度学习基础（神经网络、反向传播、MSE loss）
+
+---
+
+## 致谢
+
+- 感谢 Cheng Chi、Zhenjia Xu、Siyuan Feng 等原作者的卓越工作和开放的代码仓库
+- 感谢精读过程中帮助我打通数学细节、澄清训练/推理场景区别的讨论伙伴
+
+---
+
+## License
+
+本仓库的笔记、图表和文字内容采用 **CC BY 4.0** 许可（署名后可自由使用）。原论文和原代码的许可归原作者所有，请参考 [原作者 repo](https://github.com/real-stanford/diffusion_policy) 的 LICENSE。
+
+---
+
+**作者**: [@luojinfan95-cpu](https://github.com/luojinfan95-cpu) · 联系: luojinfan95@gmail.com
+
+*最后更新: 2026-04-19*
