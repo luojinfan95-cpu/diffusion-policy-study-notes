@@ -1,0 +1,19 @@
+# OS
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Large files
+*.ckpt
+*.pt
+*.pth
